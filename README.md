@@ -1,2 +1,2 @@
 # my-react-app
-a simple price tracking app for amazon to help cosumers make better decisions
+a simple price tracking app for amazon and flipkart to help cosumers make better decisions
