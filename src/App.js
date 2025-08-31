@@ -1,269 +1,499 @@
-import React, { useMemo, useState } from "react"; import { Search, Bell, User, ShoppingCart, TrendingUp, Filter, Star, Tag, Smartphone, Gamepad2, Watch, Monitor, Home, Package } from "lucide-react"; import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, } from "recharts";
+// src/App.js
+import React, { useMemo, useState } from "react";
+import {
+  Search,
+  Bell,
+  User,
+  TrendingUp,
+  Filter,
+  Star,
+  Smartphone,
+  Gamepad2,
+  Watch,
+  Monitor,
+  Home,
+  Package,
+} from "lucide-react";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
 
-/**
+/* ---------------- CONFIG ---------------- */
+const PLATFORMS = ["amazon", "flipkart", "meesho"];
+const PLATFORM_LABEL = {
+  amazon: "Amazon",
+  flipkart: "Flipkart",
+  meesho: "Meesho",
+};
+const PLATFORM_COLOR = {
+  amazon: "#3b82f6",
+  flipkart: "#22c55e",
+  meesho: "#f59e0b",
+};
 
-TrackNshop — MVP React app
+const AFFILIATE = {
+  amazonTag: "yourtag-21",
+  flipkartTag: "affid_yourtag",
+  meeshoTag: "yourtag",
+  buildUrl: (platform, rawUrl) => {
+    if (!rawUrl) return rawUrl;
+    switch (platform) {
+      case "amazon":
+        return rawUrl.includes("?")
+          ? `${rawUrl}&tag=${AFFILIATE.amazonTag}`
+          : `${rawUrl}?tag=${AFFILIATE.amazonTag}`;
+      case "flipkart":
+        return rawUrl.includes("?")
+          ? `${rawUrl}&affid=${AFFILIATE.flipkartTag}`
+          : `${rawUrl}?affid=${AFFILIATE.flipkartTag}`;
+      case "meesho":
+        return rawUrl;
+      default:
+        return rawUrl;
+    }
+  },
+};
 
+/* ---------------- MOCK DATA HELPERS ---------------- */
+function prng(seed) {
+  let x = Math.sin(seed) * 10000;
+  return function () {
+    x = Math.sin(x) * 10000;
+    return x - Math.floor(x);
+  };
+}
 
----
+function genHistory(days, base, volatility = 0.05, seed = 1) {
+  const rand = prng(seed);
+  const out = [];
+  const now = new Date();
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(now.getDate() - i);
+    const drift = (rand() - 0.5) * volatility * base;
+    const seasonal = Math.sin(i / 5) * 0.02 * base;
+    const price = Math.max(200, Math.round(base + drift + seasonal));
+    out.push({ date: d.toISOString().slice(0, 10), price });
+  }
+  return out;
+}
 
-Goals:
+const CATALOG = [
+  {
+    id: "p1",
+    title: "Wireless Headphones",
+    rating: 4.5,
+    reviews: 12345,
+    category: "Electronics",
+    badge: "50% OFF",
+    discount: 30,
+    platforms: [
+      {
+        platform: "amazon",
+        currentPrice: 4599,
+        url: "https://www.amazon.in/dp/example-headphones",
+        history: genHistory(365, 5600, 0.08, 1),
+      },
+      {
+        platform: "flipkart",
+        currentPrice: 4699,
+        url: "https://www.flipkart.com/item/example-headphones",
+        history: genHistory(365, 5400, 0.07, 2),
+      },
+      {
+        platform: "meesho",
+        currentPrice: 4499,
+        url: "https://www.meesho.com/item/example-headphones",
+        history: genHistory(365, 5200, 0.09, 3),
+      },
+    ],
+  },
+  {
+    id: "p2",
+    title: "Smart Watch",
+    rating: 4.2,
+    reviews: 8400,
+    category: "Wearables",
+    discount: 20,
+    platforms: [
+      {
+        platform: "amazon",
+        currentPrice: 3999,
+        url: "https://www.amazon.in/dp/example-smartwatch",
+        history: genHistory(365, 4800, 0.06, 4),
+      },
+      {
+        platform: "flipkart",
+        currentPrice: 4199,
+        url: "https://www.flipkart.com/item/example-smartwatch",
+        history: genHistory(365, 4700, 0.05, 5),
+      },
+      {
+        platform: "meesho",
+        currentPrice: 3899,
+        url: "https://www.meesho.com/item/example-smartwatch",
+        history: genHistory(365, 4600, 0.07, 6),
+      },
+    ],
+  },
+  {
+    id: "p3",
+    title: "Wireless Controller",
+    rating: 4.6,
+    reviews: 5600,
+    category: "Gaming",
+    platforms: [
+      {
+        platform: "amazon",
+        currentPrice: 2599,
+        url: "https://www.amazon.in/dp/example-controller",
+        history: genHistory(365, 3000, 0.08, 7),
+      },
+      {
+        platform: "flipkart",
+        currentPrice: 2699,
+        url: "https://www.flipkart.com/item/example-controller",
+        history: genHistory(365, 2900, 0.06, 8),
+      },
+      {
+        platform: "meesho",
+        currentPrice: 2499,
+        url: "https://www.meesho.com/item/example-controller",
+        history: genHistory(365, 2800, 0.07, 9),
+      },
+    ],
+  },
+];
 
-Mobile-first, clean UI inspired by the mock you shared
+const currency = (n) => `₹${n.toLocaleString()}`;
 
+function clampHistory(data, rangeDays) {
+  if (rangeDays >= data.length) return data;
+  return data.slice(data.length - rangeDays);
+}
 
-Price comparison across Amazon / Flipkart / Meesho (mock data now)
+function productLowestPrice(p) {
+  return Math.min(...p.platforms.map((pl) => pl.currentPrice));
+}
 
+/* ---------------- UI SMALL HELPERS (no external CSS required) ---------------- */
+function Card({ className = "", children, ...rest }) {
+  return (
+    <div
+      className={`rounded-2xl bg-white shadow-[0_6px_18px_rgba(16,24,40,0.06)] ${className}`}
+      {...rest}
+    >
+      {children}
+    </div>
+  );
+}
 
-Interactive chart with range selector + per-platform toggles
+function Chip({ active, onClick, children }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        padding: "6px 12px",
+        borderRadius: 999,
+        border: "1px solid #e6e6e6",
+        background: active ? "#2563eb" : "#fff",
+        color: active ? "#fff" : "#333",
+        cursor: "pointer",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
 
+function Badge({ color = "#10b981", children }) {
+  return (
+    <span
+      style={{
+        backgroundColor: color,
+        color: "#fff",
+        padding: "3px 8px",
+        borderRadius: 999,
+        fontSize: 12,
+        fontWeight: 600,
+      }}
+    >
+      {children}
+    </span>
+  );
+}
 
-Easily extensible, readable code with clear sections & comments
+/* ---------------- HEADER ---------------- */
+function Header({ onSearch }) {
+  const [q, setQ] = useState("");
+  return (
+    <div style={{ background: "#2563eb", color: "#fff", padding: 16, borderRadius: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h1 style={{ margin: 0, fontSize: 20 }}>TrackNshop</h1>
+        <div style={{ display: "flex", gap: 12 }}>
+          <Bell />
+          <User />
+        </div>
+      </div>
 
+      <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8, background: "#fff", padding: 8, borderRadius: 12 }}>
+        <Search style={{ color: "#a3a3a3" }} />
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search"
+          style={{ flex: 1, border: "none", outline: "none", fontSize: 14 }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") onSearch(q);
+          }}
+        />
+        <button
+          onClick={() => onSearch(q)}
+          style={{ background: "#2563eb", color: "#fff", border: "none", padding: "6px 12px", borderRadius: 8 }}
+        >
+          <Filter style={{ width: 14, height: 14 }} /> Go
+        </button>
+      </div>
+    </div>
+  );
+}
 
-Ready to port to React Native / Expo later (view logic is decoupled)
+/* ---------------- Category strip ---------------- */
+const CATEGORIES = [
+  { name: "Electronics", icon: <Smartphone /> },
+  { name: "Gaming", icon: <Gamepad2 /> },
+  { name: "Wearables", icon: <Watch /> },
+  { name: "Monitors", icon: <Monitor /> },
+  { name: "Home", icon: <Package /> },
+  { name: "All", icon: <Home /> },
+];
 
-
-How to extend later:
-
-Replace MOCK.fetchProductHistory with a real API (or adapters per store)
-
-
-Replace AFFILIATE.buildUrl() with your real tracking IDs
-
-
-Lift product state into a global store if you add routing (Zustand/Redux)
-
-
-For PWA/mobile app: wrap with VitePWA or port views to React Native */
-
-
-
-/***************************** CONFIG *****************************/ const PLATFORMS = ["amazon", "flipkart", "meesho"] as const; const PLATFORM_LABEL: Record<string, string> = { amazon: "Amazon", flipkart: "Flipkart", meesho: "Meesho", }; const PLATFORM_COLOR: Record<string, string> = { amazon: "#3b82f6", // blue flipkart: "#22c55e", // green meesho: "#f59e0b", // amber };
-
-// Put your affiliate tags here later const AFFILIATE = { amazonTag: "yourtag-21", flipkartTag: "affid_yourtag", meeshoTag: "yourtag", buildUrl: (platform: string, rawUrl: string) => { switch (platform) { case "amazon": return rawUrl.includes("?") ? ${rawUrl}&tag=${AFFILIATE.amazonTag} : ${rawUrl}?tag=${AFFILIATE.amazonTag}; case "flipkart": return rawUrl.includes("?") ? ${rawUrl}&affid=${AFFILIATE.flipkartTag} : ${rawUrl}?affid=${AFFILIATE.flipkartTag}; case "meesho": // Placeholder — adjust when you have Meesho's format return rawUrl; default: return rawUrl; } }, };
-
-/***************************** MOCK DATA *****************************/ // Deterministic pseudo-random for stable demo function prng(seed: number) { let x = Math.sin(seed) * 10000; return () => { x = Math.sin(x) * 10000; return x - Math.floor(x); }; }
-
-function genHistory(days: number, base: number, volatility = 0.05, seed = 1) { const rand = prng(seed); const out: { date: string; price: number }[] = []; const now = new Date(); for (let i = days - 1; i >= 0; i--) { const d = new Date(now); d.setDate(now.getDate() - i); const drift = (rand() - 0.5) * volatility * base; const seasonal = Math.sin(i / 5) * 0.02 * base; const price = Math.max(200, Math.round(base + drift + seasonal)); out.push({ date: d.toISOString().slice(0, 10), price }); } return out; }
-
-export type PlatformPrice = { platform: typeof PLATFORMS[number]; currentPrice: number; url: string; // raw product url (affiliate attached at click time) history: { date: string; price: number }[]; };
-
-export type Product = { id: string; title: string; rating: number; reviews: number; category: string; image: string; // can be remote or base64; using gradient card instead for demo badge?: string; // e.g., "50% OFF" discount?: number; // e.g., 20 means 20% OFF platforms: PlatformPrice[]; };
-
-// Lightweight catalog with three sample products const CATALOG: Product[] = [ { id: "p1", title: "Wireless Headphones", rating: 4.5, reviews: 12345, category: "Electronics", image: "", badge: "50% OFF", discount: 30, platforms: [ { platform: "amazon", currentPrice: 4599, url: "https://www.amazon.in/dp/example-headphones", history: genHistory(365, 5600, 0.08, 1), }, { platform: "flipkart", currentPrice: 4699, url: "https://www.flipkart.com/item/example-headphones", history: genHistory(365, 5400, 0.07, 2), }, { platform: "meesho", currentPrice: 4499, url: "https://www.meesho.com/item/example-headphones", history: genHistory(365, 5200, 0.09, 3), }, ], }, { id: "p2", title: "Smart Watch", rating: 4.2, reviews: 8400, category: "Wearables", image: "", discount: 20, platforms: [ { platform: "amazon", currentPrice: 3999, url: "https://www.amazon.in/dp/example-smartwatch", history: genHistory(365, 4800, 0.06, 4), }, { platform: "flipkart", currentPrice: 4199, url: "https://www.flipkart.com/item/example-smartwatch", history: genHistory(365, 4700, 0.05, 5), }, { platform: "meesho", currentPrice: 3899, url: "https://www.meesho.com/item/example-smartwatch", history: genHistory(365, 4600, 0.07, 6), }, ], }, { id: "p3", title: "Wireless Controller", rating: 4.6, reviews: 5600, category: "Gaming", image: "", platforms: [ { platform: "amazon", currentPrice: 2599, url: "https://www.amazon.in/dp/example-controller", history: genHistory(365, 3000, 0.08, 7), }, { platform: "flipkart", currentPrice: 2699, url: "https://www.flipkart.com/item/example-controller", history: genHistory(365, 2900, 0.06, 8), }, { platform: "meesho", currentPrice: 2499, url: "https://www.meesho.com/item/example-controller", history: genHistory(365, 2800, 0.07, 9), }, ], }, ];
-
-/***************************** UTILITIES *****************************/ const currency = (n: number) => ₹${n.toLocaleString()};
-
-function clampHistory( data: { date: string; price: number }[], rangeDays: number ) { if (rangeDays >= data.length) return data; return data.slice(data.length - rangeDays); }
-
-function productLowestPrice(p: Product) { return Math.min(...p.platforms.map((pl) => pl.currentPrice)); }
-
-/***************************** UI PRIMITIVES *****************************/ const Card: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className = "", children, ...rest }) => (
-
-  <div
-    className={`rounded-2xl bg-white shadow-[0_6px_18px_rgba(16,24,40,0.06)] ${className}`}
-    {...rest}
-  >
-    {children}
-  </div>
-);const Chip: React.FC<{ active?: boolean; onClick?: () => void; children: React.ReactNode; }> = ({ active, onClick, children }) => ( <button onClick={onClick} className={px-3 py-1 rounded-full border text-sm transition-colors ${ active ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-700 border-gray-200 hover:border-gray-300" }}
-
-> 
-
-{children}
-
-  </button>
-);const Badge: React.FC<{ color?: string; children: React.ReactNode }> = ({ color = "#10b981", children, }) => ( <span style={{ backgroundColor: color, color: "#fff" }} className="px-2 py-0.5 rounded-full text-xs font-medium"
-
-> 
-
-{children}
-
-  </span>
-);/***************************** HEADER *****************************/ function Header({ onSearch }: { onSearch: (q: string) => void }) { const [q, setQ] = useState(""); return ( <div className="bg-blue-600 text-white rounded-3xl p-4 md:p-6 mb-4 md:mb-6"> <div className="flex items-center justify-between gap-3"> <h1 className="text-xl md:text-2xl font-semibold">TrackNshop</h1> <div className="flex gap-3"> <Bell className="w-5 h-5 opacity-90" /> <User className="w-5 h-5 opacity-90" /> </div> </div> <div className="mt-4 flex items-center gap-2 bg-white rounded-xl px-3 py-2 text-gray-700"> <Search className="w-5 h-5 text-gray-400" /> <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" className="flex-1 outline-none bg-transparent text-sm" onKeyDown={(e) => { if (e.key === "Enter") onSearch(q); }} /> <button onClick={() => onSearch(q)} className="flex items-center gap-1 text-sm bg-blue-600 text-white px-3 py-1.5 rounded-lg" > <Filter className="w-4 h-4" /> Go </button> </div> </div> ); }
-
-/***************************** CATEGORY STRIP *****************************/ const CATEGORIES = [ { name: "Electronics", icon: <Smartphone className="w-5 h-5" /> }, { name: "Gaming", icon: <Gamepad2 className="w-5 h-5" /> }, { name: "Wearables", icon: <Watch className="w-5 h-5" /> }, { name: "Monitors", icon: <Monitor className="w-5 h-5" /> }, { name: "Home", icon: <Home className="w-5 h-5" /> }, { name: "All", icon: <Package className="w-5 h-5" /> }, ];
-
-function CategoryStrip({ active, setActive, }: { active: string; setActive: (c: string) => void; }) { return ( <div className="flex gap-2 overflow-x-auto pb-2"> {CATEGORIES.map((c) => ( <Chip key={c.name} active={active === c.name} onClick={() => setActive(c.name)} > <span className="inline-flex items-center gap-2">{c.icon}{c.name}</span> </Chip> ))} </div> ); }
-
-/***************************** DEAL CARD *****************************/ function GradientImage({ label }: { label?: string }) { return ( <div className="relative w-full h-36 md:h-40 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700"> {label ? ( <div className="absolute top-2 right-2"> <Badge color="#f59e0b">{label}</Badge> </div> ) : null} </div> ); }
-
-function DealCard({ product, onCompare, }: { product: Product; onCompare: (p: Product) => void; }) { const lowest = productLowestPrice(product); return ( <Card className="p-3 flex flex-col gap-3"> <GradientImage label={product.badge} /> <div className="flex items-start justify-between gap-3"> <div className="flex-1"> <div className="font-medium">{product.title}</div> <div className="text-xs text-gray-500 flex items-center gap-1"> <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" /> {product.rating} • {product.reviews.toLocaleString()} reviews </div> </div> {product.discount ? ( <Badge>{product.discount}% OFF</Badge> ) : null} </div> <div className="flex items-center justify-between"> <div className="text-lg font-semibold">{currency(lowest)}</div> <button onClick={() => onCompare(product)} className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm flex items-center gap-2" > <TrendingUp className="w-4 h-4" /> Compare </button> </div> <div className="text-xs text-gray-500">Best price across stores right now.</div> </Card> ); }
-
-/***************************** COMPARE PANEL *****************************/ function PriceComparePanel({ product, onClose, }: { product: Product | null; onClose: () => void; }) { const [range, setRange] = useState<15 | 30 | 90 | 180 | 365 | 730>(365); const [active, setActive] = useState<Record<string, boolean>>({ amazon: true, flipkart: true, meesho: true, });
-
-const series = useMemo(() => { if (!product) return [] as any[]; return product.platforms.map((pl) => ({ platform: pl.platform, color: PLATFORM_COLOR[pl.platform], data: clampHistory(pl.history, range).map((h) => ({ date: h.date, [pl.platform]: h.price, })), })); }, [product, range]);
-
-// Merge series by date for Recharts (one object per date, keys per platform) const merged = useMemo(() => { const map = new Map<string, any>(); series.forEach((s) => { s.data.forEach((d) => { const prev = map.get(d.date) || { date: d.date }; map.set(d.date, { ...prev, ...d }); }); }); return Array.from(map.values()); }, [series]);
-
-if (!product) return null; return ( <div className="fixed inset-0 bg-black/50 z-50 flex items-end md:items-center justify-center"> <div className="bg-white w-full md:max-w-3xl rounded-t-3xl md:rounded-3xl p-4 md:p-6 max-h-[90vh] overflow-auto"> <div className="flex items-start justify-between gap-3"> <div> <div className="text-lg font-semibold">{product.title}</div> <div className="text-sm text-gray-500">Compare prices across stores</div> </div> <button onClick={onClose} className="text-gray-600">Close</button> </div>
-
-{/* Range selector */}
-    <div className="mt-4 flex flex-wrap gap-2">
-      {[15, 30, 90, 180, 365, 730].map((r) => (
-        <Chip key={r} active={range === r} onClick={() => setRange(r as any)}>
-          {r === 15 ? "15d" : r === 30 ? "1m" : r === 90 ? "3m" : r === 180 ? "6m" : r === 365 ? "1y" : "2y"}
+function CategoryStrip({ active, setActive }) {
+  return (
+    <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 8 }}>
+      {CATEGORIES.map((c) => (
+        <Chip key={c.name} active={active === c.name} onClick={() => setActive(c.name)}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+            {c.icon}
+            {c.name}
+          </span>
         </Chip>
       ))}
     </div>
+  );
+}
 
-    {/* Legend toggles */}
-    <div className="mt-3 flex flex-wrap gap-2 items-center">
-      {PLATFORMS.map((p) => (
-        <button
-          key={p}
-          onClick={() => setActive((a) => ({ ...a, [p]: !a[p] }))}
-          className={`px-2 py-1 rounded-md border text-xs flex items-center gap-2 ${
-            active[p]
-              ? "bg-white border-gray-300"
-              : "bg-gray-100 border-gray-200 opacity-60"
-          }`}
-        >
-          <span
-            className="inline-block w-3 h-3 rounded"
-            style={{ background: PLATFORM_COLOR[p] }}
-          />
-          {PLATFORM_LABEL[p]}
-        </button>
-      ))}
+/* ---------------- DealCard ---------------- */
+function GradientImage({ label }) {
+  return (
+    <div style={{ position: "relative", width: "100%", height: 140, borderRadius: 12, background: "linear-gradient(135deg,#3b82f6,#2563eb)" }}>
+      {label ? <div style={{ position: "absolute", right: 8, top: 8 }}><Badge color="#f59e0b">{label}</Badge></div> : null}
     </div>
+  );
+}
 
-    {/* Chart */}
-    <div className="mt-4 h-60 md:h-80">
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={merged} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-          <YAxis tick={{ fontSize: 12 }} />
-          <Tooltip formatter={(value: any, name: string) => [currency(Number(value)), PLATFORM_LABEL[name] || name]} />
-          <Legend />
-          {PLATFORMS.filter((p) => active[p]).map((p) => (
-            <Line key={p} type="monotone" dataKey={p} stroke={PLATFORM_COLOR[p]} dot={false} strokeWidth={2} />
-          ))}
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
-
-    {/* Current offers */}
-    <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
-      {product.platforms.map((pl) => (
-        <Card key={pl.platform} className="p-3 flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <div className="font-medium">{PLATFORM_LABEL[pl.platform]}</div>
-            <span
-              className="inline-block w-3 h-3 rounded"
-              style={{ background: PLATFORM_COLOR[pl.platform] }}
-            />
-          </div>
-          <div className="text-xl font-semibold">{currency(pl.currentPrice)}</div>
-          <button
-            onClick={() => window.open(AFFILIATE.buildUrl(pl.platform, pl.url), "_blank")}
-            className="mt-auto px-3 py-2 rounded-lg bg-blue-600 text-white text-sm"
-          >
-            Buy on {PLATFORM_LABEL[pl.platform]}
-          </button>
-        </Card>
-      ))}
-    </div>
-
-    <div className="mt-3 text-xs text-gray-500">
-      Tip: tap lines in the legend to toggle; change range above. Prices are demo data.
-    </div>
-  </div>
-</div>
-
-); }
-
-/***************************** MAIN APP *****************************/ export default function App() { const [query, setQuery] = useState(""); const [category, setCategory] = useState("All"); const [selected, setSelected] = useState<Product | null>(null);
-
-const products = useMemo(() => { return CATALOG.filter((p) => { const qok = !query || p.title.toLowerCase().includes(query.toLowerCase()); const cok = category === "All" || p.category === category; return qok && cok; }); }, [query, category]);
-
-return ( <div className="min-h-screen bg-slate-50 text-slate-900 p-3 md:p-6"> <div className="max-w-6xl mx-auto"> <Header onSearch={setQuery} />
-
-<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      {/* Left column: hero + categories */}
-      <div className="md:col-span-2 space-y-4">
-        <Card className="p-4 md:p-6">
-          <div className="grid grid-cols-3 gap-4 items-center">
-            <div className="col-span-2">
-              <div className="text-2xl font-semibold">Today's Deals</div>
-              <div className="text-gray-600 text-sm mt-1">Curated value-for-money picks updated daily</div>
-              <button className="mt-3 px-3 py-2 bg-blue-600 text-white rounded-lg text-sm">Track Price</button>
-            </div>
-            <div>
-              <div className="w-full h-24 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600" />
-            </div>
-          </div>
-        </Card>
-
+function DealCard({ product, onCompare }) {
+  const lowest = productLowestPrice(product);
+  return (
+    <Card className="p-3" style={{ padding: 12 }}>
+      <GradientImage label={product.badge} />
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
         <div>
-          <div className="text-lg font-semibold mb-2">Quick Categories</div>
-          <CategoryStrip active={category} setActive={setCategory} />
+          <div style={{ fontWeight: 600 }}>{product.title}</div>
+          <div style={{ fontSize: 13, color: "#6b7280", display: "flex", gap: 6, alignItems: "center" }}>
+            <Star style={{ color: "#fbbf24" }} /> {product.rating} • {product.reviews.toLocaleString()} reviews
+          </div>
+        </div>
+        {product.discount ? <Badge>{product.discount}% OFF</Badge> : null}
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10 }}>
+        <div style={{ fontSize: 18, fontWeight: 700 }}>{currency(lowest)}</div>
+        <button onClick={() => onCompare(product)} style={{ background: "#2563eb", color: "#fff", border: "none", padding: "8px 12px", borderRadius: 8 }}>
+          <TrendingUp /> Compare
+        </button>
+      </div>
+      <div style={{ fontSize: 12, color: "#6b7280", marginTop: 6 }}>Best price across stores right now.</div>
+    </Card>
+  );
+}
+
+/* ---------------- PriceComparePanel ---------------- */
+function PriceComparePanel({ product, onClose }) {
+  const [range, setRange] = useState(365);
+  const [active, setActive] = useState({ amazon: true, flipkart: true, meesho: true });
+
+  const series = useMemo(() => {
+    if (!product) return [];
+    return product.platforms.map((pl) => ({
+      platform: pl.platform,
+      color: PLATFORM_COLOR[pl.platform],
+      data: clampHistory(pl.history, range).map((h) => ({ date: h.date, [pl.platform]: h.price })),
+    }));
+  }, [product, range]);
+
+  const merged = useMemo(() => {
+    const map = new Map();
+    series.forEach((s) => {
+      s.data.forEach((d) => {
+        const prev = map.get(d.date) || { date: d.date };
+        map.set(d.date, { ...prev, ...d });
+      });
+    });
+    return Array.from(map.values());
+  }, [series]);
+
+  if (!product) return null;
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ background: "#fff", width: "95%", maxWidth: 1000, borderRadius: 16, padding: 16, maxHeight: "90vh", overflow: "auto" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 700 }}>{product.title}</div>
+            <div style={{ fontSize: 13, color: "#6b7280" }}>Compare prices across stores</div>
+          </div>
+          <button onClick={onClose} style={{ background: "transparent", border: "none", color: "#555" }}>Close</button>
         </div>
 
-        <div className="text-lg font-semibold mt-6 mb-2">Featured Deals</div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-          {products.map((p) => (
-            <DealCard key={p.id} product={p} onCompare={setSelected} />
+        <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {[15, 30, 90, 180, 365, 730].map((r) => (
+            <Chip key={r} active={range === r} onClick={() => setRange(r)}>{r === 15 ? "15d" : r === 30 ? "1m" : r === 90 ? "3m" : r === 180 ? "6m" : r === 365 ? "1y" : "2y"}</Chip>
           ))}
         </div>
-      </div>
 
-      {/* Right column: side cards */}
-      <div className="space-y-4">
-        {products.slice(0, 2).map((p) => (
-          <Card key={p.id + "side"} className="p-3">
-            <div className="flex items-center gap-3">
-              <div className="w-20 h-16 rounded-lg bg-gradient-to-br from-blue-400 to-blue-600" />
-              <div className="flex-1">
-                <div className="font-medium line-clamp-2">{p.title}</div>
-                <div className="text-sm text-gray-500">{currency(productLowestPrice(p))}</div>
+        <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {PLATFORMS.map((p) => (
+            <button key={p} onClick={() => setActive((a) => ({ ...a, [p]: !a[p] }))} style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #e5e7eb", background: active[p] ? "#fff" : "#f3f4f6" }}>
+              <span style={{ display: "inline-block", width: 12, height: 12, background: PLATFORM_COLOR[p], borderRadius: 4, marginRight: 8 }}></span>
+              {PLATFORM_LABEL[p]}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ marginTop: 12, height: 300 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={merged} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" />
+              <YAxis />
+              <Tooltip formatter={(value, name) => [currency(Number(value)), PLATFORM_LABEL[name] || name]} />
+              <Legend />
+              {PLATFORMS.filter((p) => active[p]).map((p) => (
+                <Line key={p} type="monotone" dataKey={p} stroke={PLATFORM_COLOR[p]} dot={false} strokeWidth={2} />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 12 }}>
+          {product.platforms.map((pl) => (
+            <Card key={pl.platform} style={{ padding: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ fontWeight: 600 }}>{PLATFORM_LABEL[pl.platform]}</div>
+                <div style={{ width: 12, height: 12, background: PLATFORM_COLOR[pl.platform], borderRadius: 4 }} />
               </div>
-              <button
-                onClick={() => setSelected(p)}
-                className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm"
-              >
-                View
+              <div style={{ fontSize: 20, fontWeight: 700, marginTop: 8 }}>{currency(pl.currentPrice)}</div>
+              <button onClick={() => window.open(AFFILIATE.buildUrl(pl.platform, pl.url), "_blank")} style={{ marginTop: 12, background: "#2563eb", color: "#fff", padding: "8px 12px", borderRadius: 8, border: "none" }}>
+                Buy on {PLATFORM_LABEL[pl.platform]}
               </button>
-            </div>
-          </Card>
-        ))}
+            </Card>
+          ))}
+        </div>
 
-        <Card className="p-3">
-          <div className="flex items-center justify-between">
-            <div className="font-semibold">About</div>
-          </div>
-          <p className="text-sm text-gray-600 mt-1">
-            TrackNshop helps you compare prices across Amazon, Flipkart, and Meesho quickly. Click a store to buy via our affiliate links and support the site.
-          </p>
-        </Card>
+        <div style={{ marginTop: 8, color: "#6b7280", fontSize: 12 }}>Tip: toggle platforms and change ranges. Prices are demo data.</div>
       </div>
     </div>
+  );
+}
 
-    <footer className="mt-8 text-xs text-gray-500 flex flex-wrap items-center gap-4 justify-between">
-      <div>© {new Date().getFullYear()} TrackNshop</div>
-      <div className="flex gap-3">
-        <a href="#" className="hover:underline">Privacy</a>
-        <a href="#" className="hover:underline">Contact</a>
-        <a href="#" className="hover:underline">App Download</a>
+/* ---------------- MAIN APP ---------------- */
+export default function App() {
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState("All");
+  const [selected, setSelected] = useState(null);
+
+  const products = useMemo(() => {
+    return CATALOG.filter((p) => {
+      const qok = !query || p.title.toLowerCase().includes(query.toLowerCase());
+      const cok = category === "All" || p.category === category;
+      return qok && cok;
+    });
+  }, [query, category]);
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#f8fafc", color: "#0f172a", padding: 12 }}>
+      <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+        <Header onSearch={setQuery} />
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 16, marginTop: 12 }}>
+          <div>
+            <Card style={{ padding: 16 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12, alignItems: "center" }}>
+                <div>
+                  <div style={{ fontSize: 20, fontWeight: 700 }}>Today's Deals</div>
+                  <div style={{ color: "#6b7280", marginTop: 6 }}>Curated value-for-money picks updated daily</div>
+                  <button style={{ marginTop: 12, padding: "8px 12px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 8 }}>Track Price</button>
+                </div>
+                <div>
+                  <div style={{ width: "100%", height: 80, borderRadius: 12, background: "linear-gradient(135deg,#60a5fa,#2563eb)" }} />
+                </div>
+              </div>
+            </Card>
+
+            <div style={{ marginTop: 12 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Quick Categories</div>
+              <CategoryStrip active={category} setActive={setCategory} />
+            </div>
+
+            <div style={{ fontSize: 16, fontWeight: 700, marginTop: 18, marginBottom: 8 }}>Featured Deals</div>
+            <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))" }}>
+              {products.map((p) => (
+                <DealCard key={p.id} product={p} onCompare={setSelected} />
+              ))}
+            </div>
+          </div>
+
+          <div style={{ marginTop: 12 }}>
+            {products.slice(0, 2).map((p) => (
+              <Card key={p.id + "side"} style={{ padding: 12, marginBottom: 12 }}>
+                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                  <div style={{ width: 80, height: 64, borderRadius: 8, background: "linear-gradient(135deg,#60a5fa,#2563eb)" }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 700 }}>{p.title}</div>
+                    <div style={{ color: "#6b7280", fontSize: 14 }}>{currency(productLowestPrice(p))}</div>
+                  </div>
+                  <button onClick={() => setSelected(p)} style={{ padding: "8px 12px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 8 }}>View</button>
+                </div>
+              </Card>
+            ))}
+
+            <Card style={{ padding: 12 }}>
+              <div style={{ fontWeight: 700 }}>About</div>
+              <p style={{ color: "#6b7280", fontSize: 13, marginTop: 6 }}>
+                TrackNshop helps you compare prices across Amazon, Flipkart, and Meesho quickly. Click a store to buy via our affiliate links and support the site.
+              </p>
+            </Card>
+          </div>
+        </div>
+
+        <footer style={{ marginTop: 18, color: "#6b7280", fontSize: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>© {new Date().getFullYear()} TrackNshop</div>
+          <div style={{ display: "flex", gap: 12 }}>
+            <a href="#">Privacy</a>
+            <a href="#">Contact</a>
+            <a href="#">App Download</a>
+          </div>
+        </footer>
       </div>
-    </footer>
-  </div>
 
-  {/* Mobile Bottom Nav */}
-  <nav className="fixed bottom-3 inset-x-0 mx-auto max-w-md bg-white shadow-lg rounded-2xl px-6 py-2 flex items-center justify-between md:hidden">
-    <div className="flex flex-col items-center text-blue-600"><Home className="w-5 h-5" /><span className="text-[11px]">Home</span></div>
-    <div className="flex flex-col items-center text-gray-500"><Tag className="w-5 h-5" /><span className="text-[11px]">Categories</span></div>
-    <div className="flex flex-col items-center text-gray-500"><TrendingUp className="w-5 h-5" /><span className="text-[11px]">Tracked</span></div>
-    <div className="flex flex-col items-center text-gray-500"><User className="w-5 h-5" /><span className="text-[11px]">Profile</span></div>
-  </nav>
-
-  {/* Compare panel */}
-  {selected && (
-    <PriceComparePanel product={selected} onClose={() => setSelected(null)} />
-  )}
-</div>
-
-); }
-
+      {selected && <PriceComparePanel product={selected} onClose={() => setSelected(null)} />}
+    </div>
+  );
+}
