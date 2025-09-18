@@ -1,6 +1,71 @@
-.App {
-  text-align: center;
-  margin-top: 50px;
-  font-family: Arial, sans-serif;
+/* src/App.css - clean responsive styling */
+:root{
+  --blue:#1976d2;
+  --muted:#6b7280;
+  --bg:#f6f7f9;
+  --card:#ffffff;
 }
-8) src/index
+
+*{box-sizing:border-box}
+body,html,#root{height:100%}
+body{margin:0;font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;color:#111;background:var(--bg)}
+
+/* Topbar */
+.topbar{background:var(--blue); color:#fff; padding:18px 20px 12px; border-bottom-left-radius:10px; border-bottom-right-radius:10px}
+.topbar-inner{display:flex;align-items:center;justify-content:space-between;max-width:1100px;margin:0 auto}
+.brand{font-weight:700;font-size:20px}
+.top-actions .icon-btn{background:transparent;border:0;color:#fff;margin-left:8px;font-size:16px;cursor:pointer}
+
+.search-row{max-width:1100px;margin:12px auto 0;display:flex;gap:10px}
+.search-input{flex:1;padding:12px 14px;border-radius:8px;border:0;box-shadow:0 4px 14px rgba(0,0,0,0.06)}
+.search-btn{background:#fff;color:var(--blue);border:0;padding:10px 16px;border-radius:8px;cursor:pointer;font-weight:600}
+
+/* Main layout */
+.main{max-width:1100px;margin:22px auto;padding:0 16px}
+.hero h1{margin:0;font-size:24px}
+.hero .sub{color:var(--muted);margin-top:6px}
+
+/* Results / product area */
+.results{margin-top:18px}
+.notice{padding:12px;border-radius:8px;margin-bottom:12px}
+.notice.error{background:#fff0f0;color:#9b1c1c;border:1px solid #ffdddd}
+
+.placeholder{display:flex;flex-direction:column;align-items:flex-start}
+.ph-card{display:flex;gap:14px;background:var(--card);padding:14px;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,0.04);width:100%}
+.ph-img{width:120px;height:120px;background:#fafafa;border-radius:8px;border:1px dashed #eee}
+.ph-body{flex:1;display:flex;flex-direction:column;justify-content:center}
+.ph-line{height:16px;background:#f3f4f6;border-radius:6px;margin-bottom:8px}
+.ph-line.short{width:50%}
+.hint{color:var(--muted);margin-top:10px}
+
+/* product card */
+.product-card{display:flex;gap:20px;background:var(--card);padding:18px;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,0.05)}
+.card-left{width:180px;display:flex;flex-direction:column;align-items:center;gap:12px}
+.product-image{width:160px;height:160px;object-fit:contain;border-radius:6px;background:#fff}
+.no-image{width:160px;height:160px;display:flex;align-items:center;justify-content:center;background:#fafafa;border-radius:6px;border:1px dashed #eee;color:var(--muted)}
+.track-actions{display:flex;gap:10px;flex-direction:column;width:100%}
+.btn-primary{display:inline-block;padding:10px 12px;border-radius:8px;background:var(--blue);color:#fff;text-decoration:none;text-align:center}
+.btn-outline{padding:10px 12px;border-radius:8px;border:1px solid #ddd;background:transparent;cursor:pointer}
+
+/* right column */
+.card-right{flex:1}
+.title{margin:0 0 8px 0;font-size:18px}
+.price-row{display:flex;align-items:center;gap:12px}
+.price{font-size:22px;font-weight:700}
+.badge{background:#e6f4ea;color:#11602b;padding:6px 8px;border-radius:8px;font-weight:600;font-size:13px}
+.meta{color:var(--muted);margin-top:8px}
+.raw{margin-top:12px;background:#fbfbfb;padding:12px;border-radius:8px;border:1px solid #f0f0f0;max-height:240px;overflow:auto}
+
+/* flipkart placeholder */
+.flipkart-section{margin-top:26px;padding:14px;background:var(--card);border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,0.03)}
+.footer{max-width:1100px;margin:30px auto;padding:20px 16px;color:var(--muted);display:flex;justify-content:space-between;align-items:center}
+
+/* responsive */
+@media (max-width:780px){
+  .product-card{flex-direction:column;align-items:center}
+  .card-left{width:100%}
+  .card-right{width:100%}
+  .search-row{flex-direction:column}
+  .search-input{width:100%}
+  .search-btn{width:100%}
+}
